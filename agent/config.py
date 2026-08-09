@@ -21,10 +21,6 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Ensure database directory exists at runtime
-db_path = Path(settings.database_path)
-db_path.parent.mkdir(parents=True, exist_ok=True)
-
 DISCOVERY_SOURCES = [
     {
         "name": "arxiv_cs_lg",
