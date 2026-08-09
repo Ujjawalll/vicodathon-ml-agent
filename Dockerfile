@@ -26,9 +26,6 @@ COPY --from=builder /root/.local /home/appuser/.local
 # Copy application code
 COPY --chown=appuser:appuser . .
 
-# Create data directory for SQLite persistence (in working directory)
-RUN mkdir -p data && chown appuser:appuser data
-
 # Switch to non-root user
 USER appuser
 
@@ -38,6 +35,7 @@ ENV PATH=/home/appuser/.local/bin:$PATH
 # Environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    DATABASE_PATH=/data/agent.db \
     PORT=8000
 
 # Health check - use wget (included in python:3.11-slim) with longer timeout
@@ -47,5 +45,5 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
 # Expose port
 EXPOSE 8000
 
-# Run the application
-CMD ["sh", "-c", "python -m agent.main"]
+# Run the application - create data directory at runtime
+CMD ["sh", "-c", "mkdir -p /data && python -m agent.main"]
