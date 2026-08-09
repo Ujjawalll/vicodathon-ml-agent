@@ -1,3 +1,4 @@
+import os
 import ollama
 import json
 import re
@@ -103,9 +104,28 @@ def clean_json(json_str: str) -> str:
     return json_str
 
 
+class MockLLMClient:
+    """Mock LLM client for demo/deployment without Ollama."""
+    
+    MOCK_RESPONSE = {
+        "text": "Just shipped a feature using the new Anthropic prompt engineering tutorial. The interactive playground is slick, but here's my take: prompt engineering is 10% syntax, 90% understanding your data and evals. Built a quick RAG eval set last week - nDCG jumped 0.3 just by fixing chunk overlap. If you're not measuring retrieval quality, you're guessing.\n\n#MLOps #LLM #PromptEngineering",
+        "rationale": "This topic was selected because it represents a practical trend in LLM development - interactive tooling for prompt engineering. The post shares a hard-won lesson about evaluation being more important than tooling, which aligns with the persona's pragmatic, anti-hype voice. Sources include the Anthropic prompt engineering tutorial on GitHub.",
+        "sources": ["https://github.com/anthropics/prompt-eng-interactive-tutorial"]
+    }
+    
+    async def generate(self, prompt: str) -> str:
+        return json.dumps(self.MOCK_RESPONSE)
+
+
 class PostWriter:
     def __init__(self):
-        self.client = ollama.AsyncClient(host=settings.ollama_host)
+        use_mock = os.getenv("USE_MOCK_LLM", "false").lower() == "true"
+        if use_mock:
+            self.client = MockLLMClient()
+            self._use_mock = True
+        else:
+            self.client = ollama.AsyncClient(host=settings.ollama_host)
+            self._use_mock = False
 
     async def write(self, topic: Topic, recent_posts: List[str]) -> PostGeneration:
         recent_posts_text = "\n".join(f"- {p}" for p in recent_posts[:5]) or "None"
@@ -119,12 +139,15 @@ class PostWriter:
         )
         
         try:
-            response = await self.client.chat(
-                model=settings.ollama_model,
-                messages=[{"role": "user", "content": prompt}],
-                options={"temperature": 0.3, "num_predict": 1000},
-            )
-            content = response["message"]["content"].strip()
+            if self._use_mock:
+                content = await self.client.generate(prompt)
+            else:
+                response = await self.client.chat(
+                    model=settings.ollama_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    options={"temperature": 0.3, "num_predict": 1000},
+                )
+                content = response["message"]["content"].strip()
             
             data = extract_json(content)
             

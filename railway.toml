@@ -1,0 +1,16 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 60
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
+
+[environments.production]
+USE_MOCK_LLM = "true"
+DATABASE_PATH = "/data/agent.db"
+SCHEDULER_INTERVAL_HOURS = "4"
+PUBLISH_THRESHOLD = "7.0"
+MAX_TOPICS_PER_RUN = "30"
