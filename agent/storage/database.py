@@ -48,7 +48,7 @@ class Database:
                     id TEXT PRIMARY KEY,
                     agent_id TEXT NOT NULL,
                     title TEXT NOT NULL,
-                    url TEXT NOTNULL,
+                    url TEXT NOT NULL,
                     source TEXT NOT NULL,
                     source_category TEXT NOT NULL,
                     summary TEXT NOT NULL,
