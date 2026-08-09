@@ -10,7 +10,7 @@ restartPolicyMaxRetries = 10
 
 [environments.production]
 USE_MOCK_LLM = "true"
-DATABASE_PATH = "/data/agent.db"
+DATABASE_PATH = "./data/agent.db"
 SCHEDULER_INTERVAL_HOURS = "4"
 PUBLISH_THRESHOLD = "7.0"
 MAX_TOPICS_PER_RUN = "30"
