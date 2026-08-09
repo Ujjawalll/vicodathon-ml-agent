@@ -26,23 +26,13 @@ class Database:
         if self._initialized:
             return
         self.db_path = Path(settings.database_path)
-        self._init_db()
         self._initialized = True
 
-    @contextmanager
-    def get_conn(self):
-        conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        try:
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
-
-    def _init_db(self):
+    def _ensure_db(self):
+        """Lazy initialization - create database and tables on first use."""
+        if hasattr(self, '_db_created'):
+            return
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self.get_conn() as conn:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS agents (
@@ -58,7 +48,7 @@ class Database:
                     id TEXT PRIMARY KEY,
                     agent_id TEXT NOT NULL,
                     title TEXT NOT NULL,
-                    url TEXT NOT NULL,
+                    url TEXT NOTNULL,
                     source TEXT NOT NULL,
                     source_category TEXT NOT NULL,
                     summary TEXT NOT NULL,
@@ -90,8 +80,27 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_posts_agent ON posts(agent_id);
                 CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);
             """)
+        self._db_created = True
+
+    @contextmanager
+    def get_conn(self):
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def _init_db(self):
+        """Deprecated - use _ensure_db() for lazy initialization."""
+        self._ensure_db()
 
     def create_agent(self, agent: Agent) -> Agent:
+        self._ensure_db()
         with self.get_conn() as conn:
             conn.execute(
                 """INSERT INTO agents (id, persona_name, persona_domain, created_at, last_run, config)
@@ -108,6 +117,7 @@ class Database:
         return agent
 
     def get_agent(self, agent_id: str) -> Optional[Agent]:
+        self._ensure_db()
         with self.get_conn() as conn:
             row = conn.execute(
                 "SELECT * FROM agents WHERE id = ?", (agent_id,)
@@ -124,6 +134,7 @@ class Database:
         return None
 
     def update_agent_last_run(self, agent_id: str, last_run: datetime):
+        self._ensure_db()
         with self.get_conn() as conn:
             conn.execute(
                 "UPDATE agents SET last_run = ? WHERE id = ?",
@@ -131,6 +142,7 @@ class Database:
             )
 
     def topic_exists(self, agent_id: str, content_hash: str) -> bool:
+        self._ensure_db()
         with self.get_conn() as conn:
             row = conn.execute(
                 "SELECT 1 FROM topics WHERE agent_id = ? AND content_hash = ?",
@@ -139,6 +151,7 @@ class Database:
         return row is not None
 
     def save_topic(self, topic: Topic) -> Topic:
+        self._ensure_db()
         with self.get_conn() as conn:
             conn.execute(
                 """INSERT INTO topics (id, agent_id, title, url, source, source_category,
@@ -165,6 +178,7 @@ class Database:
     def update_topic_evaluation(
         self, topic_id: str, score: float, reasoning: str, published: bool
     ):
+        self._ensure_db()
         with self.get_conn() as conn:
             conn.execute(
                 """UPDATE topics SET evaluated_at = ?, score = ?, judgment_reasoning = ?, published = ?
@@ -173,6 +187,7 @@ class Database:
             )
 
     def get_unpublished_topics(self, agent_id: str, limit: int = 50) -> List[Topic]:
+        self._ensure_db()
         with self.get_conn() as conn:
             rows = conn.execute(
                 """SELECT * FROM topics 
@@ -183,6 +198,7 @@ class Database:
         return [self._row_to_topic(row) for row in rows]
 
     def get_recent_posts(self, agent_id: str, limit: int = 10) -> List[Post]:
+        self._ensure_db()
         with self.get_conn() as conn:
             rows = conn.execute(
                 """SELECT * FROM posts 
@@ -193,6 +209,7 @@ class Database:
         return [self._row_to_post(row) for row in rows]
 
     def save_post(self, post: Post) -> Post:
+        self._ensure_db()
         with self.get_conn() as conn:
             conn.execute(
                 """INSERT INTO posts (id, agent_id, topic_id, created_at, text, rationale, sources)
@@ -210,6 +227,7 @@ class Database:
         return post
 
     def get_all_posts(self, agent_id: str) -> List[Post]:
+        self._ensure_db()
         with self.get_conn() as conn:
             rows = conn.execute(
                 """SELECT * FROM posts 
@@ -248,4 +266,25 @@ class Database:
         )
 
 
-db = Database()
+# Lazy database instance - initialized on first use
+_db_instance = None
+_db_lock = threading.Lock()
+
+
+def get_db() -> Database:
+    """Get database instance, initializing on first access."""
+    global _db_instance
+    if _db_instance is None:
+        with _db_lock:
+            if _db_instance is None:
+                _db_instance = Database()
+    return _db_instance
+
+
+# Backward compatibility - db property that initializes on access
+class _DBProxy:
+    def __getattr__(self, name):
+        return getattr(get_db(), name)
+
+
+db = _DBProxy()
