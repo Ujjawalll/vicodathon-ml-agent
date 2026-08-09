@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 import uvicorn
+import os
 
 from agent.config import settings
 from agent.api.routes import router
@@ -15,7 +16,7 @@ scheduler = AsyncIOScheduler()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print(f"Starting ML Engineer Agent on port 8000")
+    print(f"Starting ML Engineer Agent on port {os.getenv('PORT', '8000')}")
     print(f"Scheduler interval: {settings.scheduler_interval_hours} hours")
     print(f"Ollama: {settings.ollama_host} (model: {settings.ollama_model})")
     
@@ -58,4 +59,5 @@ async def health():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run(app, host="0.0.0.0", port=port)

@@ -38,14 +38,15 @@ ENV PATH=/home/appuser/.local/bin:$PATH
 # Environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    DATABASE_PATH=/data/agent.db
+    DATABASE_PATH=/data/agent.db \
+    PORT=8000
 
 # Health check - use wget (included in python:3.11-slim) with longer timeout
-HEALTHCHECK --interval=30s --timeout=30s --start-period=30s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT}/health || exit 1
 
 # Expose port
 EXPOSE 8000
 
 # Run the application
-CMD ["python", "-m", "agent.main"]
+CMD ["sh", "-c", "python -m agent.main"]
